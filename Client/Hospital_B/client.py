@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 from collections import OrderDict
 
-DataFile = "Hospital_A.csv"
+DataFile = "Hospital_B.csv"
 
 class Model(nn.Module):
     def __init__(self):
