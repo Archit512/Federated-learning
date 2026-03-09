@@ -4,9 +4,9 @@ import torch.nn as nn
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
-from collections import OrderDict
+from collections import OrderedDict
 
-DataFile = "Hospital_A.csv"
+DataFile = "Hospital_B.csv"
 
 class Model(nn.Module):
     def __init__(self):
@@ -52,7 +52,7 @@ class HospitalClient(flwr.client.NumPyClient):
 
     def set_parameters(self, parameters):
         params_dict = zip(self.model.state_dict().keys(), parameters)
-        state_dict = OrderDict({k: torch.tensor(v) for k, v in params_dict})
+        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
 
         self.model.load_state_dict(state_dict, strict=True)
 
@@ -88,7 +88,7 @@ class HospitalClient(flwr.client.NumPyClient):
                 output = self.model(data)
                 test_loss += criterion(output, target).item()
                 pred = (output > 0).float()
-                correct += pred.eq(target).sum().item()
+                correct += (pred == target).all(dim=1).sum().item()
         test_loss /= len(self.test_loader.dataset)
         accuracy = correct / len(self.test_loader.dataset)
         return test_loss, accuracy
