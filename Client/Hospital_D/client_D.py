@@ -108,4 +108,4 @@ if __name__ == "__main__":
     print(f"Connecting to Server at {IP}:8080...")
     
     client = HospitalClient(model, train_loader, test_loader)
-    flwr.client.start_numpy_client(server_address=f"{IP}:8080", client=client.to_client())
+    flwr.client.start_client(server_address=f"{IP}:8080", client=client.to_client())
