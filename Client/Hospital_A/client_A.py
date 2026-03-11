@@ -12,9 +12,9 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(6, 16),
+            nn.Linear(21, 16),
             nn.ReLU(),
-            nn.Linear(16, 2),
+            nn.Linear(16, 1),
         )
 
     def forward(self, x):
@@ -35,9 +35,9 @@ class HospitalDataset(Dataset):
 def load_data(file):
     df = pd.read_csv(file, header=None)
 
-    X = df.iloc[:, :-2].values.astype('float32')
+    X = df.iloc[:, :21].values.astype('float32')
 
-    y = df.iloc[:, -2:].values.astype('float32')
+    y = df.iloc[:, 21].values.astype('float32').reshape(-1, 1)
 
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -59,7 +59,7 @@ class HospitalClient(flwr.client.NumPyClient):
     def fit(self, parameters, config):
         self.set_parameters(parameters)
         self.train()
-        return self.get_parameters(), len(self.train_loader.dataset), {}
+        return self.get_parameters(config={}), len(self.train_loader.dataset), {}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
@@ -86,9 +86,9 @@ class HospitalClient(flwr.client.NumPyClient):
         with torch.no_grad():
             for data, target in self.test_loader:
                 output = self.model(data)
-                test_loss += criterion(output, target).item()
+                test_loss += criterion(output, target).item() * data.size(0)
                 pred = (output > 0).float()
-                correct += (pred == target).all(dim=1).sum().item()
+                correct += (pred == target).sum().item()
         test_loss /= len(self.test_loader.dataset)
         accuracy = correct / len(self.test_loader.dataset)
         return test_loss, accuracy
