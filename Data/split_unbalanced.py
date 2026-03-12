@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_csv('Data/heart_disease_data.csv',header=None)
+df = pd.read_csv('Data/Initial data/heart_disease_data.csv',header=None)
 size = len(df) // 4
 print("Creating Non-IID (Unequal) Distributions for the 4 Hospitals...")
 
