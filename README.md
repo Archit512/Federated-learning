@@ -32,7 +32,6 @@ The repository contains a Flower-based federated learning setup coordinated by o
 - Hidden layer: 16 units + ReLU
 - Output layer: 1 logit (binary classification)
 - Loss function: `BCEWithLogitsLoss`
-- Optimizer: Adam (`lr=0.001`)
 
 ## Repository Structure
 
@@ -181,6 +180,14 @@ The server currently aggregates weights with standard FedAvg.
 
 Future iterations can explore FedProx to penalize local model drift and improve training stability under extreme Non-IID conditions.
 
+## Citations and Acknowledgments
+
+This project relies on the following open-source frameworks, datasets, and documentation:
+
+- Dataset: Teboul, A. (2020). *Heart Disease Health Indicators Dataset* [Data set]. Kaggle. Compiled from the CDC's Behavioral Risk Factor Surveillance System (BRFSS) 2015.
+- Federated Learning Framework: Flower Labs. *Tutorial Series: What is Federated Learning?* Flower Documentation. Available at: https://flower.ai/docs/framework/tutorial-series-what-is-federated-learning.html
+- Algorithm (FedAvg): McMahan, B., Moore, E., Ramage, D., Hampson, S., and y Arcas, B. A. (2017). *Communication-Efficient Learning of Deep Networks from Decentralized Data*. In Artificial Intelligence and Statistics (AISTATS).
+  
 ## License
 
 This project is licensed under the MIT License. See `LICENSE` for details.
