@@ -93,6 +93,17 @@ class HospitalClient(flwr.client.NumPyClient):
         accuracy = correct / len(self.test_loader.dataset)
         return test_loss, accuracy
     
+    def predict(self, data):
+        logit = self.model(data)
+
+        prob = torch.sigmoid(logit)
+
+        confidence = prob.item()*100
+        ans = 1 if confidence > 50 else 0
+
+        print(f"Predicted Class: {ans} with confidence {confidence:.2f}%")
+
+
 if __name__ == "__main__":
     X_train, X_test, y_train, y_test = load_data(DataFile)
 
