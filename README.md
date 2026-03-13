@@ -1,5 +1,10 @@
 # Privacy-Preserving Healthcare Diagnosis using Federated Learning
 
+📖 **Additional Documentation:**  
+➡️ [Federated Learning Technical Explanation](Federated_Learning.md)
+
+---
+
 ## Overview
 
 This project implements a decentralized machine learning architecture to predict heart disease risk using the CDC Heart Disease Health Indicators Dataset.
