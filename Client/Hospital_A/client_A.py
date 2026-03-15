@@ -6,6 +6,9 @@ from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 from collections import OrderedDict
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 DataFile = "Hospital_A.csv"
 
 class Model(nn.Module):
@@ -16,6 +19,7 @@ class Model(nn.Module):
             nn.ReLU(),
             nn.Linear(16, 1),
         )
+        self.net.to(device)
 
     def forward(self, x):
         return self.net(x)
@@ -34,11 +38,8 @@ class HospitalDataset(Dataset):
    
 def load_data(file):
     df = pd.read_csv(file, header=None)
-
     X = df.iloc[:, :21].values.astype('float32')
-
     y = df.iloc[:, 21].values.astype('float32').reshape(-1, 1)
-
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 class HospitalClient(flwr.client.NumPyClient):
@@ -47,14 +48,14 @@ class HospitalClient(flwr.client.NumPyClient):
         self.train_loader = train_loader
         self.test_loader = test_loader
 
-    def get_parameters(self,config):
+    def get_parameters(self, config):
         return [val.cpu().numpy() for val in self.model.state_dict().values()]
 
     def set_parameters(self, parameters):
         params_dict = zip(self.model.state_dict().keys(), parameters)
-        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-
+        state_dict = OrderedDict({k: torch.tensor(v).to(device) for k, v in params_dict})  # FIXED
         self.model.load_state_dict(state_dict, strict=True)
+        self.model.to(device)  # FIXED
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
@@ -72,6 +73,7 @@ class HospitalClient(flwr.client.NumPyClient):
         self.model.train()
         for epoch in range(5): 
             for data, target in self.train_loader:
+                data, target = data.to(device), target.to(device)
                 optimizer.zero_grad()
                 output = self.model(data)
                 loss = criterion(output, target)
@@ -85,6 +87,7 @@ class HospitalClient(flwr.client.NumPyClient):
         correct = 0
         with torch.no_grad():
             for data, target in self.test_loader:
+                data, target = data.to(device), target.to(device)
                 output = self.model(data)
                 test_loss += criterion(output, target).item() * data.size(0)
                 pred = (output > 0).float()
@@ -92,30 +95,28 @@ class HospitalClient(flwr.client.NumPyClient):
         test_loss /= len(self.test_loader.dataset)
         accuracy = correct / len(self.test_loader.dataset)
         return test_loss, accuracy
-
+    
     def predict(self, data):
         logit = self.model(data)
-
         prob = torch.sigmoid(logit)
-
-        confidence = prob.item()*100
+        confidence = prob.item() * 100
         ans = 1 if confidence > 50 else 0
-
         print(f"Predicted Class: {ans} with confidence {confidence:.2f}%")
-    
+
+
 if __name__ == "__main__":
     X_train, X_test, y_train, y_test = load_data(DataFile)
 
     train_dataset = HospitalDataset(X_train, y_train)
-    test_dataset = HospitalDataset(X_test, y_test)
+    test_dataset  = HospitalDataset(X_test,  y_test)
 
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+    test_loader  = DataLoader(test_dataset,  batch_size=16, shuffle=False)
 
-    IP = "" #Add here the server Laptop's actual IP
+    IP = "127.0.0.1"
 
     model = Model()
     print(f"Connecting to Server at {IP}:8080...")
     
     client = HospitalClient(model, train_loader, test_loader)
-    flwr.client.start_client(server_address=f"{IP}:8080", client=client.to_client())
+    flwr.client.start_numpy_client(server_address=f"{IP}:8080", client=client)
