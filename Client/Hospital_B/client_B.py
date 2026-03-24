@@ -105,8 +105,10 @@ class HospitalClient(flwr.client.NumPyClient):
 
 
 if __name__ == "__main__":
+    print("[Hospital_B] Loading dataset...")
     X_train, X_test, y_train, y_test = load_data(DataFile)
 
+    print("[Hospital_B] Preparing train/test loaders...")
     train_dataset = HospitalDataset(X_train, y_train)
     test_dataset  = HospitalDataset(X_test,  y_test)
 
@@ -115,8 +117,11 @@ if __name__ == "__main__":
 
     IP = "" #IPv4 address of server machine
 
+    print("[Hospital_B] Initializing model...")
     model = Model()
+    print(f"[Hospital_B] Connecting to server at {IP}:8089...")
     print(f"Connecting to Server at {IP}:8089...")
     
     client = HospitalClient(model, train_loader, test_loader)
-    flwr.client.start_numpy_client(server_address=f"{IP}:8089", client=client)
+    print("[Hospital_B] Client started. Waiting for federated rounds...")
+    flwr.client.start_client(server_address=f"{IP}:8089", client=client.to_client())
