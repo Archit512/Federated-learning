@@ -115,11 +115,12 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     test_loader  = DataLoader(test_dataset,  batch_size=16, shuffle=False)
 
-    IP = "127.0.0.1"
+    IP = "" #IPv4 address of server machine
 
     print("[Hospital_B] Initializing model...")
     model = Model()
     print(f"[Hospital_B] Connecting to server at {IP}:8089...")
+    print(f"Connecting to Server at {IP}:8089...")
     
     client = HospitalClient(model, train_loader, test_loader)
     print("[Hospital_B] Client started. Waiting for federated rounds...")
