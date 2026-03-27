@@ -1,4 +1,3 @@
-import os
 import glob
 import torch
 import torch.nn as nn
@@ -8,6 +7,8 @@ from sklearn.model_selection import train_test_split
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[TRAIN] Using device: {device}")
+
+MODEL_SAVE_PATH = "global_model.pth"
 
 # ── Same architecture as federated clients ──────────────────────────────────
 class Model(nn.Module):
@@ -38,11 +39,12 @@ class HospitalDataset(Dataset):
 
 # ── Main training function ───────────────────────────────────────────────────
 def train_centralized_model(data_dir: str) -> float:
-    csv_files = glob.glob(os.path.join(data_dir, "*.csv"))
+    csv_files = glob.glob(f"{data_dir}/*.csv")
     if not csv_files:
         raise FileNotFoundError(f"No CSV files found in {data_dir}")
 
-    print(f"[TRAIN] Merging {len(csv_files)} hospital dataset(s): {[os.path.basename(f) for f in csv_files]}")
+    filenames = [f.split("/")[-1] for f in csv_files]
+    print(f"[TRAIN] Merging {len(csv_files)} hospital dataset(s): {filenames}")
 
     frames = [pd.read_csv(f, header=None) for f in csv_files]
     df = pd.concat(frames, ignore_index=True)
@@ -52,12 +54,8 @@ def train_centralized_model(data_dir: str) -> float:
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    train_dataset = HospitalDataset(
-        torch.tensor(X_train), torch.tensor(y_train)
-    )
-    test_dataset = HospitalDataset(
-        torch.tensor(X_test), torch.tensor(y_test)
-    )
+    train_dataset = HospitalDataset(torch.tensor(X_train), torch.tensor(y_train))
+    test_dataset  = HospitalDataset(torch.tensor(X_test),  torch.tensor(y_test))
 
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     test_loader  = DataLoader(test_dataset,  batch_size=16, shuffle=False)
@@ -71,7 +69,7 @@ def train_centralized_model(data_dir: str) -> float:
     for epoch in range(10):
         epoch_loss = 0.0
         for data, target in train_loader:
-            data, target = data.to(device), target.to(device)  # GPU
+            data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             output = model(data)
             loss   = criterion(output, target)
@@ -85,7 +83,7 @@ def train_centralized_model(data_dir: str) -> float:
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
-            data, target = data.to(device), target.to(device)  # GPU
+            data, target = data.to(device), target.to(device)
             output  = model(data)
             pred    = (output > 0).float()
             correct += (pred == target).sum().item()
@@ -94,14 +92,11 @@ def train_centralized_model(data_dir: str) -> float:
     print(f"[TRAIN] Centralized model accuracy: {accuracy:.4f}")
 
     # ── Save model (CPU for portability) ─────────────────────────────────────
-    model_path = os.path.join(os.path.dirname(__file__), "global_model.pth")
-    torch.save(model.cpu().state_dict(), model_path)
-    print(f"[TRAIN] Model saved → {model_path}")
+    torch.save(model.cpu().state_dict(), MODEL_SAVE_PATH)
+    print(f"[TRAIN] Model saved → {MODEL_SAVE_PATH}")
 
     return accuracy
 
 
 if __name__ == "__main__":
-    script_dir = os.path.dirname(__file__)
-    data_dir   = os.path.join(script_dir, "received_data")
-    train_centralized_model(data_dir)
+    train_centralized_model("received_data")

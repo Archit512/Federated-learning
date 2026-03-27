@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify
-import os
 from train_model import train_centralized_model
 
 app = Flask(__name__)
 
-RECEIVED_DATA_DIR = os.path.join(os.path.dirname(__file__), "received_data")
-os.makedirs(RECEIVED_DATA_DIR, exist_ok=True)
+RECEIVED_DATA_DIR = "received_data"
+
+import pathlib
+pathlib.Path(RECEIVED_DATA_DIR).mkdir(exist_ok=True)
+
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -15,7 +17,7 @@ def upload():
     file = request.files["file"]
     hospital_name = request.form["hospital_name"]
 
-    save_path = os.path.join(RECEIVED_DATA_DIR, f"{hospital_name}.csv")
+    save_path = f"{RECEIVED_DATA_DIR}/{hospital_name}.csv"
     file.save(save_path)
 
     print(f"[SERVER] Received dataset from {hospital_name} → saved to {save_path}")
@@ -34,4 +36,5 @@ def train():
 
 if __name__ == "__main__":
     print("[SERVER] Flask Centralized Server running on port 5000...")
+    print("[SERVER] Run this from inside the Centralized/ directory.")
     app.run(host="0.0.0.0", port=5000)
