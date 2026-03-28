@@ -1,1 +1,2 @@
 flwr==1.26.1
+matplotlib>=3.7.0
