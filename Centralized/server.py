@@ -1,11 +1,10 @@
 from flask import Flask, request, jsonify
+import pathlib
 from train_model import train_centralized_model
 
 app = Flask(__name__)
 
 RECEIVED_DATA_DIR = "received_data"
-
-import pathlib
 pathlib.Path(RECEIVED_DATA_DIR).mkdir(exist_ok=True)
 
 
@@ -26,10 +25,11 @@ def upload():
 
 @app.route("/train", methods=["GET"])
 def train():
-    print("[SERVER] Training triggered...")
+    print("\n[SERVER] Training triggered — see terminal for progress and accuracy...\n")
     try:
-        accuracy = train_centralized_model(RECEIVED_DATA_DIR)
-        return jsonify({"centralized_accuracy": round(accuracy, 4)}), 200
+        train_centralized_model(RECEIVED_DATA_DIR)
+        # accuracy is printed in terminal by train_model.py
+        return jsonify({"message": "Training complete. Check terminal for accuracy."}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

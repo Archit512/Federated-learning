@@ -10,7 +10,7 @@ print(f"[TRAIN] Using device: {device}")
 
 MODEL_SAVE_PATH = "global_model.pth"
 
-# ── Same architecture as federated clients ──────────────────────────────────
+
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
@@ -37,14 +37,13 @@ class HospitalDataset(Dataset):
         return self.features[idx], self.labels[idx]
 
 
-# ── Main training function ───────────────────────────────────────────────────
 def train_centralized_model(data_dir: str) -> float:
     csv_files = glob.glob(f"{data_dir}/*.csv")
     if not csv_files:
         raise FileNotFoundError(f"No CSV files found in {data_dir}")
 
-    filenames = [f.split("/")[-1] for f in csv_files]
-    print(f"[TRAIN] Merging {len(csv_files)} hospital dataset(s): {filenames}")
+    filenames = [f.split("\\")[-1].split("/")[-1] for f in csv_files]
+    print(f"[TRAIN] Merging {len(csv_files)} dataset(s): {filenames}")
 
     frames = [pd.read_csv(f, header=None) for f in csv_files]
     df = pd.concat(frames, ignore_index=True)
@@ -52,19 +51,27 @@ def train_centralized_model(data_dir: str) -> float:
     X = df.iloc[:, :21].values.astype("float32")
     y = df.iloc[:, 21].values.astype("float32").reshape(-1, 1)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
-    train_dataset = HospitalDataset(torch.tensor(X_train), torch.tensor(y_train))
-    test_dataset  = HospitalDataset(torch.tensor(X_test),  torch.tensor(y_test))
+    train_loader = DataLoader(
+        HospitalDataset(torch.tensor(X_train), torch.tensor(y_train)),
+        batch_size=16, shuffle=True
+    )
+    test_loader = DataLoader(
+        HospitalDataset(torch.tensor(X_test), torch.tensor(y_test)),
+        batch_size=16, shuffle=False
+    )
 
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    test_loader  = DataLoader(test_dataset,  batch_size=16, shuffle=False)
-
-    model     = Model()
+    model = Model()
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    # ── Train ────────────────────────────────────────────────────────────────
+    print("\n" + "=" * 52)
+    print("  Centralized Training — 10 Epochs")
+    print("=" * 52)
+
     model.train()
     for epoch in range(10):
         epoch_loss = 0.0
@@ -72,26 +79,31 @@ def train_centralized_model(data_dir: str) -> float:
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             output = model(data)
-            loss   = criterion(output, target)
+            loss = criterion(output, target)
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
-        print(f"  Epoch {epoch+1}/10 — loss: {epoch_loss/len(train_loader):.4f}")
+        avg_loss = epoch_loss / len(train_loader)
+        bar = "█" * int((1 - avg_loss) * 20) if avg_loss < 1 else ""
+        print(f"  Epoch {epoch+1:>2}/10 — loss: {avg_loss:.4f}  {bar}")
 
-    # ── Evaluate ─────────────────────────────────────────────────────────────
     model.eval()
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
-            output  = model(data)
-            pred    = (output > 0).float()
+            output = model(data)
+            pred = (output > 0).float()
             correct += (pred == target).sum().item()
 
     accuracy = correct / len(test_loader.dataset)
-    print(f"[TRAIN] Centralized model accuracy: {accuracy:.4f}")
 
-    # ── Save model (CPU for portability) ─────────────────────────────────────
+    print("=" * 52)
+    print(f"  Centralized Accuracy : {accuracy*100:.2f}%")
+    print("=" * 52)
+    print(f"\n  Copy this value into server_FedAvg.py / server_FedProx.py:")
+    print(f"  CENTRALIZED_ACCURACY = {accuracy:.4f}\n")
+
     torch.save(model.cpu().state_dict(), MODEL_SAVE_PATH)
     print(f"[TRAIN] Model saved → {MODEL_SAVE_PATH}")
 
