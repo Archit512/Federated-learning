@@ -6,6 +6,7 @@ evaluate_all.py
 
 # Generated graphs folder
 graphs/
+Client/Hospital_*/results/
 
 # Trained model weights
 Centralized/global_model.pth
@@ -15,3 +16,6 @@ Centralized/received_data/
 __pycache__/
 *.pyc
 *.pyo
+
+# Streamlit local database
+streamlit_predictions.db
