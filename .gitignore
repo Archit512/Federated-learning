@@ -16,3 +16,6 @@ Centralized/received_data/
 __pycache__/
 *.pyc
 *.pyo
+
+# Streamlit local database
+streamlit_predictions.db
