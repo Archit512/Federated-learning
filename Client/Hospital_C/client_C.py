@@ -2,14 +2,24 @@ import flwr
 import torch
 import torch.nn as nn
 import pandas as pd
+import sys
+from pathlib import Path
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 from collections import OrderedDict
+
+CLIENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CLIENT_DIR.parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "Client"))
+
+from evaluate_centralized import evaluate_hospital
+from plot_results import save_all_plots
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 DataFile = "Hospital_C.csv"
+HOSPITAL_NAME = "Hospital_C"
 
 class Model(nn.Module):
     def __init__(self):
@@ -43,10 +53,15 @@ def load_data(file):
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 class HospitalClient(flwr.client.NumPyClient):
-    def __init__(self, model, train_loader, test_loader):
+    def __init__(self, model, train_loader, test_loader, hospital_name, centralized_accuracy, results_dir):
         self.model = model
         self.train_loader = train_loader
         self.test_loader = test_loader
+        self.hospital_name = hospital_name
+        self.centralized_accuracy = centralized_accuracy
+        self.results_dir = results_dir
+        self.rounds = []
+        self.local_accuracies = []
 
     def get_parameters(self, config):
         return [val.cpu().numpy() for val in self.model.state_dict().values()]
@@ -65,6 +80,27 @@ class HospitalClient(flwr.client.NumPyClient):
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         loss, accuracy = self.test()
+
+        round_number = len(self.rounds) + 1
+        self.rounds.append(round_number)
+        self.local_accuracies.append(float(accuracy))
+
+        save_all_plots(
+            hospital_name=self.hospital_name,
+            rounds=self.rounds,
+            local_accuracies=self.local_accuracies,
+            centralized_accuracy=self.centralized_accuracy,
+            out_dir=self.results_dir,
+        )
+
+        print(
+            f"[{self.hospital_name}] Round {round_number} | "
+            f"Local={accuracy*100:.2f}% | "
+            f"Centralized={self.centralized_accuracy*100:.2f}%"
+            if self.centralized_accuracy is not None
+            else f"[{self.hospital_name}] Round {round_number} | Local={accuracy*100:.2f}%"
+        )
+
         return float(loss), len(self.test_loader.dataset), {"accuracy": float(accuracy)}
 
     def train(self):
@@ -116,11 +152,21 @@ if __name__ == "__main__":
     test_loader  = DataLoader(test_dataset,  batch_size=16, shuffle=False)
 
     IP = "127.0.0.1"
+    results_dir = CLIENT_DIR / "results"
+
+    model_path = PROJECT_ROOT / "Centralized" / "global_model.pth"
+    csv_path = PROJECT_ROOT / "Data" / "Balanced_split_data" / f"{HOSPITAL_NAME}.csv"
+    centralized_accuracy = None
+    try:
+        centralized_accuracy = evaluate_hospital(str(model_path), str(csv_path))
+        print(f"[{HOSPITAL_NAME}] Centralized reference accuracy: {centralized_accuracy*100:.2f}%")
+    except Exception as exc:
+        print(f"[{HOSPITAL_NAME}] WARNING: centralized accuracy unavailable ({exc})")
 
     print("[Hospital_C] Initializing model...")
     model = Model()
     print(f"[Hospital_C] Connecting to server at {IP}:8089...")
     
-    client = HospitalClient(model, train_loader, test_loader)
+    client = HospitalClient(model, train_loader, test_loader, HOSPITAL_NAME, centralized_accuracy, results_dir)
     print("[Hospital_C] Client started. Waiting for federated rounds...")
     flwr.client.start_client(server_address=f"{IP}:8089", client=client.to_client())
