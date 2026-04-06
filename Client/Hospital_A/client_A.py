@@ -113,10 +113,10 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     test_loader  = DataLoader(test_dataset,  batch_size=16, shuffle=False)
 
-    IP = "127.0.0.1"
+    IP = "10.124.208.102"
 
     model = Model()
-    print(f"Connecting to Server at {IP}:8080...")
+    print(f"Connecting to Server at {IP}:8089...")
     
     client = HospitalClient(model, train_loader, test_loader)
-    flwr.client.start_numpy_client(server_address=f"{IP}:8080", client=client)
+    flwr.client.start_numpy_client(server_address=f"{IP}:8089", client=client)
