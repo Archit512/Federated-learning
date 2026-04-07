@@ -4,9 +4,6 @@
 # Evaluation script
 evaluate_all.py
 
-# Generated graphs folder
-graphs/
-Client/Hospital_*/results/
 
 # Trained model weights
 Centralized/global_model.pth
