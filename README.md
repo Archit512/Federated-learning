@@ -18,16 +18,17 @@ The repository contains a Flower-based federated learning setup coordinated by o
 
 ### Server
 
-- Runs Flower server on port `8080`.
+- Runs Flower server on port `8089`.
 - Executes 10 federated communication rounds.
-- Uses the `FedAvg` strategy to aggregate model weights.
+- Uses a custom `FedAvg` strategy (`SisaStrategy`) to aggregate model weights.
+- Archives global checkpoints after every round in `Server/global_history/`.
 - Waits for all 4 clients before each round.
 
 ### Clients (Hospitals A, B, C, D)
 
-- Load local CSV data with 21 input features and 1 label column.
-- Split local data into train/test sets (80/20, `random_state=42`).
-- Train a local PyTorch model for 5 epochs per round.
+- Load hospital slice CSVs from `Data/Balanced_split_data/Hospital_X/`.
+- Train sequentially across 5 SISA slices per round (5 local epochs per slice).
+- Save per-slice local checkpoints in `Client/Hospital_X/local_checkpoints/`.
 - Return updated model parameters to the server.
 - Evaluate locally and return loss/accuracy metrics.
 
@@ -44,17 +45,25 @@ The repository contains a Flower-based federated learning setup coordinated by o
 Federated-learning/
 ├── Client/
 │   ├── requirements.txt
+│   ├── unlearning_utils.py
 │   ├── Hospital_A/
-│   │   └── client_A.py
+│   │   ├── client_A.py
+│   │   └── unlearn.py
 │   ├── Hospital_B/
-│   │   └── client_B.py
+│   │   ├── client_B.py
+│   │   └── unlearn.py
 │   ├── Hospital_C/
-│   │   └── client_C.py
+│   │   ├── client_C.py
+│   │   └── unlearn.py
 │   └── Hospital_D/
-│       └── client_D.py
+│       ├── client_D.py
+│       └── unlearn.py
 ├── Server/
 │   ├── requirements.txt
-│   └── server.py
+│   ├── server_FedAvg.py
+│   ├── server_FedProx.py
+│   └── global_history/
+├── automate_unlearning.py
 └── Data/
     ├── split_balanced.py
     ├── split_unbalanced.py
@@ -86,9 +95,15 @@ Generate edge datasets using one of these split styles:
 - Balanced split (IID): Run `Data/split_balanced.py` to create randomized, equal-size partitions.
 - Unbalanced split (Non-IID): Run `Data/split_unbalanced.py` to create skewed, demographic-isolated partitions.
 
+Both scripts also create SISA slice folders:
+
+- `Data/Balanced_split_data/Hospital_X/Hospital_X_slice_1..5.csv`
+- `Data/Unbalanced_split_data/Hospital_X/Hospital_X_slice_1..5.csv`
+- `Hospital_X_slice_map.json` metadata for unlearning.
+
 ### 3. Distribution
 
-Copy each generated `Hospital_X.csv` from the `Data` output folders into the corresponding `Client/Hospital_X/` directories.
+No manual CSV copy into `Client/Hospital_X/` is required. Clients read directly from the `Data/` split folders.
 
 ## Environment Setup
 
@@ -121,11 +136,10 @@ Note: If using Mac/Linux, activate with `source .venv/bin/activate`.
 On the central server machine:
 
 ```powershell
-cd Server
-python server.py
+python Server/server_FedAvg.py
 ```
 
-The server listens on `[::]:8080`.
+The server listens on `0.0.0.0:8089`.
 
 ### Step 2. Configure Client IPs
 
@@ -140,11 +154,28 @@ IP = "<SERVER_IP_ADDRESS>"
 On each hospital machine, run its matching client script. Example for Hospital A:
 
 ```powershell
-cd Client/Hospital_A
-python client_A.py
+python Client/Hospital_A/client_A.py
 ```
 
 Training begins automatically once the 4th client connects.
+
+## Unlearning Workflow
+
+1. Trigger unlearning on the target hospital (example):
+
+```powershell
+python Client/Hospital_A/unlearn.py --patient-id <PATIENT_ID> --data-style Balanced
+```
+
+2. Or use the coordinator script to remove + emit rollback signal:
+
+```powershell
+python automate_unlearning.py
+```
+
+3. Restart server and clients to retrain from rollback state.
+
+Rollback signals are read from `Server/rollback_signal.json`, and global checkpoints are loaded from `Server/global_history/`.
 
 ## Evaluation
 
@@ -156,14 +187,17 @@ Training begins automatically once the 4th client connects.
 
 ### Server
 
-- `flwr>=1.0.0`
+- `flwr==1.26.1`
+- `torch>=2.0.0`
 
 ### Clients
 
-- `flwr>=1.0.0`
+- `flwr==1.26.1`
 - `torch>=2.0.0`
 - `pandas>=2.0.0`
 - `scikit-learn>=1.3.0`
+- `matplotlib>=3.7.0`
+- `requests>=2.31.0`
 
 ### Data Conversion
 
@@ -172,9 +206,9 @@ Training begins automatically once the 4th client connects.
 
 ## Troubleshooting
 
-- Clients cannot connect to server: Verify server IP is correct in each client script. Confirm port `8080` is open in the server firewall and all machines are on the same network.
+- Clients cannot connect to server: Verify server IP is correct in each client script. Confirm port `8089` is open in the server firewall and all machines are on the same network.
 - Training does not start: The server requires 4 available clients. Ensure all hospital clients are running before expecting federated rounds to proceed.
-- Data file not found errors: Confirm each `Hospital_X.csv` exists in the same folder as the running client script.
+- Data file not found errors: Confirm `Data/Balanced_split_data/Hospital_X/` contains slice CSV files and `Hospital_X_slice_map.json`.
 
 ## Future Scope
 

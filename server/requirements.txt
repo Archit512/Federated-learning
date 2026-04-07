@@ -1,2 +1,2 @@
 flwr==1.26.1
-matplotlib>=3.7.0
+torch>=2.0.0
