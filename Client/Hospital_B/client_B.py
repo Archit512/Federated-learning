@@ -80,6 +80,16 @@ class HospitalClient(flwr.client.NumPyClient):
     def fit(self, parameters, config):
         self.set_parameters(parameters)
         current_round = config.get("server_round", len(self.rounds) + 1)
+        rollback_round = int(config.get("rollback_round", config.get("RollbackRound", config.get("CleanupRound", 0))))
+
+        if rollback_round > 0:
+            checkpoint = self.checkpoint_dir / f"round_{rollback_round}_slice_5.pth"
+            if checkpoint.exists():
+                print(f"[{self.hospital_name}] Reverting local state to Round {rollback_round}")
+                self.model.load_state_dict(torch.load(checkpoint, map_location=device))
+                self.slice_loaders, self.total_samples = self.load_slice_loaders()
+            else:
+                print(f"[{self.hospital_name}] WARNING: rollback checkpoint not found: {checkpoint}")
 
         for slice_idx, slice_loader in enumerate(self.slice_loaders, start=1):
             self.train_on_slice(slice_loader)
