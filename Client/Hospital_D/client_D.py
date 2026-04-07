@@ -18,8 +18,8 @@ from plot_results import save_all_plots
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-DataFile = "Hospital_D.csv"
 HOSPITAL_NAME = "Hospital_D"
+FULL_DATA_PATH = PROJECT_ROOT / "Data" / "Balanced_split_data" / f"{HOSPITAL_NAME}.csv"
 
 class Model(nn.Module):
     def __init__(self):
@@ -53,13 +53,18 @@ def load_data(file):
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 class HospitalClient(flwr.client.NumPyClient):
-    def __init__(self, model, train_loader, test_loader, hospital_name, centralized_accuracy, results_dir):
+    def __init__(self, model, test_loader, hospital_name, slice_dir, centralized_accuracy, results_dir):
         self.model = model
-        self.train_loader = train_loader
         self.test_loader = test_loader
         self.hospital_name = hospital_name
+        self.slice_dir = slice_dir
         self.centralized_accuracy = centralized_accuracy
         self.results_dir = results_dir
+        self.checkpoint_dir = CLIENT_DIR / "local_checkpoints"
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        self.num_slices = 5
+        self.slice_loaders, self.total_samples = self.load_slice_loaders()
         self.rounds = []
         self.local_accuracies = []
 
@@ -74,8 +79,34 @@ class HospitalClient(flwr.client.NumPyClient):
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        self.train()
-        return self.get_parameters(config={}), len(self.train_loader.dataset), {}
+        current_round = config.get("server_round", len(self.rounds) + 1)
+
+        for slice_idx, slice_loader in enumerate(self.slice_loaders, start=1):
+            self.train_on_slice(slice_loader)
+
+            checkpoint_path = self.checkpoint_dir / f"round_{current_round}_slice_{slice_idx}.pth"
+            torch.save(self.model.state_dict(), checkpoint_path)
+
+        return self.get_parameters(config={}), self.total_samples, {}
+
+    def load_slice_loaders(self):
+        loaders = []
+        total_samples = 0
+
+        for s in range(1, self.num_slices + 1):
+            slice_file = self.slice_dir / f"{self.hospital_name}_slice_{s}.csv"
+            if not slice_file.exists():
+                raise FileNotFoundError(f"Missing slice file: {slice_file}")
+
+            df = pd.read_csv(slice_file, header=None)
+            X = torch.tensor(df.iloc[:, :21].values.astype("float32"))
+            y = torch.tensor(df.iloc[:, 21].values.astype("float32").reshape(-1, 1))
+
+            dataset = HospitalDataset(X, y)
+            total_samples += len(dataset)
+            loaders.append(DataLoader(dataset, batch_size=16, shuffle=True))
+
+        return loaders, total_samples
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
@@ -103,12 +134,12 @@ class HospitalClient(flwr.client.NumPyClient):
 
         return float(loss), len(self.test_loader.dataset), {"accuracy": float(accuracy)}
 
-    def train(self):
+    def train_on_slice(self, loader):
         criterion = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.model.train()
-        for epoch in range(5): 
-            for data, target in self.train_loader:
+        for _ in range(5):
+            for data, target in loader:
                 data, target = data.to(device), target.to(device)
                 optimizer.zero_grad()
                 output = self.model(data)
@@ -142,20 +173,19 @@ class HospitalClient(flwr.client.NumPyClient):
 
 if __name__ == "__main__":
     print("[Hospital_D] Loading dataset...")
-    X_train, X_test, y_train, y_test = load_data(DataFile)
+    _, X_test, _, y_test = load_data(FULL_DATA_PATH)
 
-    print("[Hospital_D] Preparing train/test loaders...")
-    train_dataset = HospitalDataset(X_train, y_train)
+    print("[Hospital_D] Preparing test loader...")
     test_dataset  = HospitalDataset(X_test,  y_test)
 
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     test_loader  = DataLoader(test_dataset,  batch_size=16, shuffle=False)
 
     IP = "127.0.0.1"
     results_dir = CLIENT_DIR / "results"
+    slice_dir = PROJECT_ROOT / "Data" / "Balanced_split_data" / HOSPITAL_NAME
 
     model_path = PROJECT_ROOT / "Centralized" / "global_model.pth"
-    csv_path = PROJECT_ROOT / "Data" / "Balanced_split_data" / f"{HOSPITAL_NAME}.csv"
+    csv_path = FULL_DATA_PATH
     centralized_accuracy = None
     try:
         centralized_accuracy = evaluate_hospital(str(model_path), str(csv_path))
@@ -167,6 +197,6 @@ if __name__ == "__main__":
     model = Model()
     print(f"[Hospital_D] Connecting to server at {IP}:8089...")
     
-    client = HospitalClient(model, train_loader, test_loader, HOSPITAL_NAME, centralized_accuracy, results_dir)
+    client = HospitalClient(model, test_loader, HOSPITAL_NAME, slice_dir, centralized_accuracy, results_dir)
     print("[Hospital_D] Client started. Waiting for federated rounds...")
     flwr.client.start_client(server_address=f"{IP}:8089", client=client.to_client())
