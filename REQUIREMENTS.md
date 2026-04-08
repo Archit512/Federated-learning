@@ -1,6 +1,6 @@
-# Requirements Documentation
+# CardioShield Requirements Documentation
 
-This document describes the dependencies required for the Federated Learning project.
+This document describes the dependencies required for the CardioShield project.
 
 ## Architecture Overview
 
