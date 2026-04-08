@@ -252,8 +252,8 @@ def render_unlearning_status(hospital: str) -> None:
 
 
 def render_header() -> None:
-    st.set_page_config(page_title="Federated Healthcare Demo", layout="wide")
-    st.title("Federated Learning Healthcare Prediction UI")
+    st.set_page_config(page_title="CardioShield", layout="wide")
+    st.title("CardioShield: Federated Healthcare Prediction UI")
     st.caption(
         "Select a hospital, enter all 21 features, run prediction, store the record, and review training/unlearning graphs."
     )

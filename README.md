@@ -1,4 +1,4 @@
-# Privacy-Preserving Healthcare Diagnosis using Federated Learning
+# CardioShield: Privacy-Preserving Healthcare Diagnosis using Federated Learning
 
 📖 **Additional Documentation:**  
 ➡️ [Federated Learning Technical Explanation](Federated_Learning.md)
@@ -7,7 +7,7 @@
 
 ## Overview
 
-This project implements a decentralized machine learning architecture to predict heart disease risk using the CDC Heart Disease Health Indicators Dataset.
+CardioShield implements a decentralized machine learning architecture to predict heart disease risk using the CDC Heart Disease Health Indicators Dataset.
 By leveraging Federated Learning (FL), the system trains a global PyTorch neural network across multiple isolated hospital clients without centralizing or sharing raw patient data.
 
 The implementation evaluates Federated Averaging (FedAvg) under different real-world data distributions, including both IID-style (balanced) and Non-IID (unbalanced/skewed) partitions across four simulated hospital nodes.
@@ -42,7 +42,7 @@ The repository contains a Flower-based federated learning setup coordinated by o
 ## Repository Structure
 
 ```text
-Federated-learning/
+CardioShield/
 ├── Client/
 │   ├── requirements.txt
 │   ├── unlearning_utils.py

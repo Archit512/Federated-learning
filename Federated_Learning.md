@@ -1,4 +1,4 @@
-# Technical Deep Dive: Federated Learning Architecture
+# CardioShield Technical Deep Dive: Federated Learning Architecture
 
 This document provides a detailed explanation of the concepts, mathematical logic, and the iterative training process behind the Decentralized Heart Disease Prediction system.
 
